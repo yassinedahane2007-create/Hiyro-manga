@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hiyro Manga | اقرأ المانجا والمانهوا مترجمة</title>
+<meta name="description" content="منصة Hiyro Manga لقراءة المانجا والمانهوا والمانها مترجمة بالعربية">
+<link rel="stylesheet" href="assets/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<header class="hm-header">
+  <div class="hm-header__inner">
+    <a href="index.html" class="hm-logo">Hiyro</a>
+    <nav class="hm-nav">
+      <a href="index.html" class="active">الرئيسية</a>
+      <a href="series.html">الأعمال</a>
+      <a href="points-store.html">المتجر</a>
+      <a href="forum.html">المنتدى</a>
+      <a href="bookmarks.html">المفضلة</a>
+      <a href="announcements.html">الإعلانات</a>
+    </nav>
+    <div class="hm-header__actions" id="headerActions">
+      <a href="login.html" class="btn btn-ghost btn-sm">تسجيل الدخول</a>
+    </div>
+  </div>
+</header>
+
+<div class="ad-slot" id="adTop"></div>
+
+<main class="container">
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <div class="hero__bg"><img id="heroCover" src="" alt=""></div>
+    <div class="hero__content">
+      <div class="hero__eyebrow">عمل مميز</div>
+      <h1 class="hero__title" id="heroTitle">جارِ التحميل...</h1>
+      <p class="hero__desc" id="heroDesc"></p>
+      <a href="#" id="heroLink" class="btn btn-primary">ابدأ القراءة</a>
+    </div>
+  </section>
+
+  <div class="layout-2col">
+    <div>
+      <!-- LATEST RELEASES -->
+      <div class="section-head">
+        <h2>أحدث الإصدارات</h2>
+        <a href="series.html">عرض الكل</a>
+      </div>
+      <div class="grid-works" id="latestReleases"></div>
+
+      <!-- LATEST UPDATES TABLE -->
+      <div class="section-head">
+        <h2>آخر التحديثات</h2>
+      </div>
+      <div class="sidebar-card">
+        <table class="updates-table">
+          <tbody id="updatesTableBody">
+            <tr><td colspan="4">جارِ التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <aside>
+      <div class="sidebar-card">
+        <div class="section-head" style="margin:0 0 12px;">
+          <h2 style="font-size:16px;">الأكثر قراءة اليوم</h2>
+        </div>
+        <div id="popularToday"></div>
+      </div>
+    </aside>
+  </div>
+
+</main>
+
+<div class="ad-slot" id="adBottom"></div>
+
+<footer class="hm-footer">
+  <div class="hm-footer__inner">
+    <span>© 2026 Hiyro Manga. جميع الحقوق محفوظة.</span>
+    <div class="hm-footer__links">
+      <a href="dmca.html">DMCA</a>
+      <a href="privacy.html">سياسة الخصوصية</a>
+      <a href="terms.html">الشروط والأحكام</a>
+      <a href="announcements.html">الإعلانات</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/supabase-client.js"></script>
+<script>
+async function loadHeader() {
+  const user = await getCurrentUser();
+  const actions = document.getElementById('headerActions');
+  if (user) {
+    actions.innerHTML = `
+      <div class="hm-points-pill">⬥ ${user.points} نقطة</div>
+      <a href="profile.html?id=${user.id}"><img class="hm-avatar" src="${user.avatar_url || 'assets/img/default-avatar.png'}" alt="${user.username}"></a>
+    `;
+  }
+}
+
+async function loadHero() {
+  const { data } = await supabase.from('works').select('*').order('views_count', { ascending: false }).limit(1).single();
+  if (!data) return;
+  document.getElementById('heroCover').src = data.cover_url || '';
+  document.getElementById('heroTitle').textContent = data.title;
+  document.getElementById('heroDesc').textContent = data.description || '';
+  document.getElementById('heroLink').href = `work.html?id=${data.id}`;
+}
+
+async function loadLatestReleases() {
+  const { data } = await supabase.from('works').select('*').order('created_at', { ascending: false }).limit(12);
+  const grid = document.getElementById('latestReleases');
+  grid.innerHTML = (data || []).map(w => `
+    <a href="work.html?id=${w.id}" class="work-card">
+      <div class="work-card__cover">
+        <img src="${w.cover_url || ''}" alt="${w.title}" loading="lazy">
+        <span class="work-card__type">${typeLabel(w.type)}</span>
+      </div>
+      <div class="work-card__body">
+        <div class="work-card__title">${w.title}</div>
+        <div class="work-card__meta"><span>${statusLabel(w.status)}</span><span>👁 ${w.views_count}</span></div>
+      </div>
+    </a>
+  `).join('') || '<p style="color:var(--text-muted)">لا توجد أعمال بعد.</p>';
+}
+
+async function loadUpdatesTable() {
+  const { data } = await supabase.from('latest_updates').select('*').limit(15);
+  const body = document.getElementById('updatesTableBody');
+  body.innerHTML = (data || []).map(u => `
+    <tr>
+      <td class="updates-row__cover"><a href="work.html?id=${u.work_id}"><img src="${u.cover_url || ''}" alt=""></a></td>
+      <td><a href="work.html?id=${u.work_id}"><strong>${u.title}</strong></a></td>
+      <td><a href="chapter.html?id=${u.chapter_id}">الفصل ${u.chapter_number}</a> ${accessBadge(u.access_type)}</td>
+      <td style="color:var(--text-muted); white-space:nowrap;">${timeAgo(u.created_at)}</td>
+    </tr>
+  `).join('') || '<tr><td>لا توجد تحديثات بعد.</td></tr>';
+}
+
+async function loadPopularToday() {
+  const { data } = await supabase.from('popular_today').select('*').limit(8);
+  const wrap = document.getElementById('popularToday');
+  wrap.innerHTML = (data || []).map((p, i) => `
+    <a href="work.html?id=${p.id}" class="popular-item">
+      <div class="popular-rank">${i + 1}</div>
+      <div class="popular-cover"><img src="${p.cover_url || ''}" alt=""></div>
+      <div>
+        <div class="popular-title">${p.title}</div>
+        <div class="popular-views">👁 ${p.views_today} اليوم</div>
+      </div>
+    </a>
+  `).join('') || '<p style="color:var(--text-muted); font-size:13px;">لا توجد بيانات كافية بعد.</p>';
+}
+
+async function loadAds() {
+  const { data } = await supabase.from('ad_codes').select('*').eq('is_active', true);
+  (data || []).forEach(ad => {
+    const slot = document.getElementById(ad.position === 'top' ? 'adTop' : 'adBottom');
+    if (slot) slot.innerHTML = ad.code;
+  });
+}
+
+function typeLabel(t) {
+  return { manga: 'مانجا', manhwa: 'مانهوا', manhua: 'مانها', webtoon: 'ويبتون', novel: 'رواية' }[t] || t;
+}
+function statusLabel(s) {
+  return { ongoing: 'مستمر', completed: 'مكتمل', hiatus: 'متوقف مؤقتاً', dropped: 'متروك' }[s] || s;
+}
+function accessBadge(t) {
+  if (t === 'points') return '<span class="badge-paid">نقاط</span>';
+  if (t === 'direct_link') return '<span class="badge-direct">رابط</span>';
+  return '<span class="badge-free">مجاني</span>';
+}
+
+loadHeader();
+loadHero();
+loadLatestReleases();
+loadUpdatesTable();
+loadPopularToday();
+loadAds();
+</script>
+</body>
+</html>
