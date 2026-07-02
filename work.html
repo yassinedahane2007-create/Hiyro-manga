@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="pageTitle">تفاصيل العمل | Hiyro Manga</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<header class="hm-header">
+  <div class="hm-header__inner">
+    <a href="index.html" class="hm-logo">Hiyro</a>
+    <nav class="hm-nav">
+      <a href="index.html">الرئيسية</a>
+      <a href="series.html" class="active">الأعمال</a>
+      <a href="points-store.html">المتجر</a>
+      <a href="forum.html">المنتدى</a>
+      <a href="bookmarks.html">المفضلة</a>
+      <a href="announcements.html">الإعلانات</a>
+    </nav>
+    <div class="hm-header__actions" id="headerActions">
+      <a href="login.html" class="btn btn-ghost btn-sm">تسجيل الدخول</a>
+    </div>
+  </div>
+</header>
+
+<div class="ad-slot" id="adTop"></div>
+
+<main class="container">
+  <div class="work-hero" id="workHero">
+    <div class="work-hero__cover"><img id="workCover" src="" alt=""></div>
+    <div>
+      <h1 class="work-hero__title" id="workTitle">جارِ التحميل...</h1>
+      <div class="work-hero__meta" id="workMeta"></div>
+      <div id="workCategories"></div>
+      <p class="work-hero__desc" id="workDesc"></p>
+      <div class="work-hero__actions">
+        <button class="btn btn-primary" id="followBtn" onclick="toggleFollow()">+ متابعة</button>
+        <button class="btn btn-ghost" id="favBtn" onclick="toggleFavorite()">♡ المفضلة</button>
+        <button class="btn btn-ghost" onclick="openDonate()">⬥ دعم الفريق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="chapters-list">
+    <div class="section-head"><h2>الفصول</h2></div>
+    <div id="chaptersList"></div>
+  </div>
+
+  <div class="section-head"><h2>التعليقات</h2></div>
+  <div class="comment-box" id="commentBox" style="display:none;">
+    <textarea id="commentInput" placeholder="اكتب تعليقك..."></textarea>
+    <button class="btn btn-primary" onclick="postComment()">نشر</button>
+  </div>
+  <div id="commentsList"></div>
+</main>
+
+<div class="ad-slot" id="adBottom"></div>
+
+<footer class="hm-footer">
+  <div class="hm-footer__inner">
+    <span>© 2026 Hiyro Manga. جميع الحقوق محفوظة.</span>
+    <div class="hm-footer__links">
+      <a href="dmca.html">DMCA</a>
+      <a href="privacy.html">سياسة الخصوصية</a>
+      <a href="terms.html">الشروط والأحكام</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/supabase-client.js"></script>
+<script>
+const workId = new URLSearchParams(location.search).get('id');
+let currentUser = null;
+
+function typeLabel(t) { return { manga: 'مانجا', manhwa: 'مانهوا', manhua: 'مانها', webtoon: 'ويبتون', novel: 'رواية' }[t] || t; }
+function statusLabel(s) { return { ongoing: 'مستمر', completed: 'مكتمل', hiatus: 'متوقف مؤقتاً', dropped: 'متروك' }[s] || s; }
+function accessBadge(t) {
+  if (t === 'points') return '<span class="badge-paid">نقاط</span>';
+  if (t === 'direct_link') return '<span class="badge-direct">رابط</span>';
+  return '<span class="badge-free">مجاني</span>';
+}
+
+async function loadHeader() {
+  currentUser = await getCurrentUser();
+  if (!currentUser) return;
+  document.getElementById('headerActions').innerHTML = `
+    <div class="hm-points-pill">⬥ ${currentUser.points} نقطة</div>
+    <a href="profile.html?id=${currentUser.id}"><img class="hm-avatar" src="${currentUser.avatar_url || 'assets/img/default-avatar.png'}" alt=""></a>
+  `;
+  document.getElementById('commentBox').style.display = 'flex';
+}
+
+async function loadWork() {
+  const { data: w } = await supabase.from('works').select('*, publishers(team_name)').eq('id', workId).single();
+  if (!w) return;
+  document.getElementById('pageTitle').textContent = `${w.title} | Hiyro Manga`;
+  document.getElementById('workCover').src = w.cover_url || '';
+  document.getElementById('workTitle').textContent = w.title;
+  document.getElementById('workMeta').textContent =
+    `${typeLabel(w.type)} • ${statusLabel(w.status)} • بقلم ${w.author || 'غير معروف'} • ترجمة ${w.publishers?.team_name || w.translation_team || '—'} • 👁 ${w.views_count} • متابع من ${w.followers_count}`;
+  document.getElementById('workDesc').textContent = w.description || '';
+
+  const { data: cats } = await supabase.from('work_categories').select('categories(name)').eq('work_id', workId);
+  document.getElementById('workCategories').innerHTML = (cats || []).map(c => `<span class="tag">${c.categories.name}</span>`).join('');
+
+  loadChapters();
+  loadComments();
+  if (currentUser) checkFollowFavorite();
+}
+
+async function loadChapters() {
+  const { data } = await supabase.from('chapters').select('*').eq('work_id', workId).order('chapter_number', { ascending: false });
+  document.getElementById('chaptersList').innerHTML = (data || []).map(c => `
+    <a href="chapter.html?id=${c.id}" class="chapter-row">
+      <span class="chapter-row__title">الفصل ${c.chapter_number}${c.title ? ' - ' + c.title : ''}</span>
+      <span class="chapter-row__meta">${accessBadge(c.access_type)} <span>${timeAgo(c.created_at)}</span></span>
+    </a>
+  `).join('') || '<p style="color:var(--text-muted)">لا توجد فصول بعد.</p>';
+}
+
+async function checkFollowFavorite() {
+  const { data: f } = await supabase.from('follows_works').select('*').eq('user_id', currentUser.id).eq('work_id', workId).maybeSingle();
+  document.getElementById('followBtn').textContent = f ? '✓ متابَع' : '+ متابعة';
+  const { data: fav } = await supabase.from('favorites').select('*').eq('user_id', currentUser.id).eq('work_id', workId).maybeSingle();
+  document.getElementById('favBtn').textContent = fav ? '♥ في المفضلة' : '♡ المفضلة';
+}
+
+async function toggleFollow() {
+  if (!currentUser) return location.href = 'login.html';
+  const { data: f } = await supabase.from('follows_works').select('*').eq('user_id', currentUser.id).eq('work_id', workId).maybeSingle();
+  if (f) await supabase.from('follows_works').delete().eq('user_id', currentUser.id).eq('work_id', workId);
+  else await supabase.from('follows_works').insert({ user_id: currentUser.id, work_id: workId });
+  checkFollowFavorite();
+}
+
+async function toggleFavorite() {
+  if (!currentUser) return location.href = 'login.html';
+  const { data: f } = await supabase.from('favorites').select('*').eq('user_id', currentUser.id).eq('work_id', workId).maybeSingle();
+  if (f) await supabase.from('favorites').delete().eq('user_id', currentUser.id).eq('work_id', workId);
+  else await supabase.from('favorites').insert({ user_id: currentUser.id, work_id: workId });
+  checkFollowFavorite();
+}
+
+function openDonate() {
+  if (!currentUser) return location.href = 'login.html';
+  location.href = `donate.html?type=work&id=${workId}`;
+}
+
+async function loadComments() {
+  const { data } = await supabase.from('comments').select('*, profiles(username, avatar_url), stickers(image_url)')
+    .eq('target_type', 'work').eq('target_id', workId).order('created_at', { ascending: false });
+  document.getElementById('commentsList').innerHTML = (data || []).map(c => `
+    <div class="comment-item">
+      <img class="comment-item__avatar" src="${c.profiles?.avatar_url || 'assets/img/default-avatar.png'}" alt="">
+      <div>
+        <span class="comment-item__name">${c.profiles?.username || 'مستخدم'}</span>
+        <span class="comment-item__time">${timeAgo(c.created_at)}</span>
+        <div class="comment-item__text">${c.content || ''}</div>
+        ${c.stickers ? `<img src="${c.stickers.image_url}" style="width:60px;margin-top:6px;">` : ''}
+      </div>
+    </div>
+  `).join('') || '<p style="color:var(--text-muted)">لا توجد تعليقات بعد.</p>';
+}
+
+async function postComment() {
+  const content = document.getElementById('commentInput').value.trim();
+  if (!content) return;
+  const { error } = await supabase.from('comments').insert({ user_id: currentUser.id, target_type: 'work', target_id: workId, content });
+  if (error) return showToast('حدث خطأ، حاول مرة أخرى', 'error');
+  document.getElementById('commentInput').value = '';
+  showToast('تم نشر تعليقك', 'success');
+  loadComments();
+}
+
+async function loadAds() {
+  const { data } = await supabase.from('ad_codes').select('*').eq('is_active', true);
+  (data || []).forEach(ad => {
+    const slot = document.getElementById(ad.position === 'top' ? 'adTop' : 'adBottom');
+    if (slot) slot.innerHTML = ad.code;
+  });
+}
+
+loadHeader().then(loadWork);
+loadAds();
+</script>
+</body>
+</html>

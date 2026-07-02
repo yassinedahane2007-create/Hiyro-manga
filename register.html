@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>حساب جديد | Hiyro Manga</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<header class="hm-header">
+  <div class="hm-header__inner">
+    <a href="index.html" class="hm-logo">Hiyro</a>
+    <div></div>
+  </div>
+</header>
+
+<main class="container">
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <h1>حساب جديد</h1>
+      <p class="sub">انضم إلى مجتمع Hiyro Manga</p>
+
+      <div class="field">
+        <label>اسم المستخدم</label>
+        <input type="text" id="username" placeholder="اسمك المستعار">
+      </div>
+      <div class="field">
+        <label>البريد الإلكتروني</label>
+        <input type="email" id="email" placeholder="example@email.com">
+      </div>
+      <div class="field">
+        <label>كلمة المرور</label>
+        <input type="password" id="password" placeholder="8 أحرف على الأقل">
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;" onclick="register()" id="registerBtn">إنشاء الحساب</button>
+
+      <div class="auth-switch">
+        عندك حساب من قبل؟ <a href="login.html">تسجيل الدخول</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="assets/js/supabase-client.js"></script>
+<script>
+async function register() {
+  const username = document.getElementById('username').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  if (!username || !email || !password) return showToast('عمر جميع الحقول', 'error');
+  if (username.length < 3) return showToast('اسم المستخدم قصير بزاف', 'error');
+  if (password.length < 8) return showToast('كلمة المرور خاصها 8 أحرف على الأقل', 'error');
+
+  const btn = document.getElementById('registerBtn');
+  btn.textContent = 'جارِ إنشاء الحساب...';
+  btn.disabled = true;
+
+  const { data: existing } = await supabase.from('profiles').select('id').eq('username', username).maybeSingle();
+  if (existing) {
+    showToast('اسم المستخدم هذا مستعمل من قبل', 'error');
+    btn.textContent = 'إنشاء الحساب';
+    btn.disabled = false;
+    return;
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email, password,
+    options: { data: { username } }
+  });
+
+  btn.textContent = 'إنشاء الحساب';
+  btn.disabled = false;
+
+  if (error) {
+    showToast(error.message.includes('already') ? 'هذا البريد مسجل من قبل' : 'حدث خطأ، حاول مرة أخرى', 'error');
+    return;
+  }
+
+  showToast('تم إنشاء حسابك بنجاح', 'success');
+  setTimeout(() => location.href = 'index.html', 1000);
+}
+
+document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') register(); });
+</script>
+</body>
+</html>

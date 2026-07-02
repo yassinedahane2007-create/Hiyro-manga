@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الأعمال | Hiyro Manga</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<header class="hm-header">
+  <div class="hm-header__inner">
+    <a href="index.html" class="hm-logo">Hiyro</a>
+    <nav class="hm-nav">
+      <a href="index.html">الرئيسية</a>
+      <a href="series.html" class="active">الأعمال</a>
+      <a href="points-store.html">المتجر</a>
+      <a href="forum.html">المنتدى</a>
+      <a href="bookmarks.html">المفضلة</a>
+      <a href="announcements.html">الإعلانات</a>
+    </nav>
+    <div class="hm-header__actions" id="headerActions">
+      <a href="login.html" class="btn btn-ghost btn-sm">تسجيل الدخول</a>
+    </div>
+  </div>
+</header>
+
+<div class="ad-slot" id="adTop"></div>
+
+<main class="container">
+  <div class="section-head" style="margin-top:24px;">
+    <h2>كل الأعمال</h2>
+  </div>
+
+  <div class="filters-bar">
+    <input type="text" id="fSearch" placeholder="ابحث عن اسم العمل...">
+    <select id="fType">
+      <option value="">كل الأنواع</option>
+      <option value="manga">مانجا</option>
+      <option value="manhwa">مانهوا</option>
+      <option value="manhua">مانها</option>
+      <option value="webtoon">ويبتون</option>
+      <option value="novel">رواية</option>
+    </select>
+    <select id="fStatus">
+      <option value="">كل الحالات</option>
+      <option value="ongoing">مستمر</option>
+      <option value="completed">مكتمل</option>
+      <option value="hiatus">متوقف مؤقتاً</option>
+      <option value="dropped">متروك</option>
+    </select>
+    <select id="fCategory">
+      <option value="">كل التصنيفات</option>
+    </select>
+    <select id="fSort">
+      <option value="created_at">الأحدث</option>
+      <option value="views_count">الأكثر مشاهدة</option>
+      <option value="followers_count">الأكثر متابعة</option>
+      <option value="title">أبجدياً</option>
+    </select>
+    <button class="btn btn-primary btn-sm" onclick="loadWorks(true)">بحث</button>
+  </div>
+
+  <div class="grid-works" id="worksGrid"></div>
+  <div style="text-align:center; margin:24px 0;">
+    <button class="btn btn-ghost" id="loadMoreBtn" onclick="loadWorks(false)">تحميل المزيد</button>
+  </div>
+</main>
+
+<footer class="hm-footer">
+  <div class="hm-footer__inner">
+    <span>© 2026 Hiyro Manga. جميع الحقوق محفوظة.</span>
+    <div class="hm-footer__links">
+      <a href="dmca.html">DMCA</a>
+      <a href="privacy.html">سياسة الخصوصية</a>
+      <a href="terms.html">الشروط والأحكام</a>
+      <a href="announcements.html">الإعلانات</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/supabase-client.js"></script>
+<script>
+let page = 0;
+const pageSize = 24;
+
+async function loadHeader() {
+  const user = await getCurrentUser();
+  if (!user) return;
+  document.getElementById('headerActions').innerHTML = `
+    <div class="hm-points-pill">⬥ ${user.points} نقطة</div>
+    <a href="profile.html?id=${user.id}"><img class="hm-avatar" src="${user.avatar_url || 'assets/img/default-avatar.png'}" alt="${user.username}"></a>
+  `;
+}
+
+async function loadCategories() {
+  const { data } = await supabase.from('categories').select('*').order('name');
+  const sel = document.getElementById('fCategory');
+  (data || []).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id; opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+}
+
+function typeLabel(t) { return { manga: 'مانجا', manhwa: 'مانهوا', manhua: 'مانها', webtoon: 'ويبتون', novel: 'رواية' }[t] || t; }
+function statusLabel(s) { return { ongoing: 'مستمر', completed: 'مكتمل', hiatus: 'متوقف مؤقتاً', dropped: 'متروك' }[s] || s; }
+
+async function loadWorks(reset) {
+  if (reset) { page = 0; document.getElementById('worksGrid').innerHTML = ''; }
+  const search = document.getElementById('fSearch').value.trim();
+  const type = document.getElementById('fType').value;
+  const status = document.getElementById('fStatus').value;
+  const category = document.getElementById('fCategory').value;
+  const sort = document.getElementById('fSort').value;
+
+  let query = supabase.from('works').select('*, work_categories!inner(category_id)', { count: 'exact' });
+  if (!category) query = supabase.from('works').select('*');
+
+  if (search) query = query.ilike('title', `%${search}%`);
+  if (type) query = query.eq('type', type);
+  if (status) query = query.eq('status', status);
+  if (category) query = query.eq('work_categories.category_id', category);
+
+  query = query.order(sort, { ascending: sort === 'title' }).range(page * pageSize, page * pageSize + pageSize - 1);
+
+  const { data } = await query;
+  const grid = document.getElementById('worksGrid');
+  grid.innerHTML += (data || []).map(w => `
+    <a href="work.html?id=${w.id}" class="work-card">
+      <div class="work-card__cover">
+        <img src="${w.cover_url || ''}" alt="${w.title}" loading="lazy">
+        <span class="work-card__type">${typeLabel(w.type)}</span>
+      </div>
+      <div class="work-card__body">
+        <div class="work-card__title">${w.title}</div>
+        <div class="work-card__meta"><span>${statusLabel(w.status)}</span><span>👁 ${w.views_count}</span></div>
+      </div>
+    </a>
+  `).join('');
+
+  document.getElementById('loadMoreBtn').style.display = (data && data.length === pageSize) ? 'inline-flex' : 'none';
+  page++;
+}
+
+loadHeader();
+loadCategories();
+loadWorks(true);
+</script>
+</body>
+</html>
