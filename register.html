@@ -59,29 +59,31 @@ async function register() {
   btn.textContent = 'جارِ إنشاء الحساب...';
   btn.disabled = true;
 
-  const { data: existing } = await supabase.from('profiles').select('id').eq('username', username).maybeSingle();
-  if (existing) {
-    showToast('اسم المستخدم هذا مستعمل من قبل', 'error');
+  try {
+    const { data: existing, error: checkError } = await supabase.from('profiles').select('id').eq('username', username).maybeSingle();
+    if (checkError) throw checkError;
+    if (existing) {
+      showToast('اسم المستخدم هذا مستعمل من قبل', 'error');
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email, password,
+      options: { data: { username } }
+    });
+
+    if (error) throw error;
+
+    showToast('تم إنشاء حسابك بنجاح', 'success');
+    setTimeout(() => location.href = 'index.html', 1000);
+
+  } catch (err) {
+    console.error(err);
+    showToast('خطأ: ' + (err.message || 'حدث خطأ، حاول مرة أخرى'), 'error');
+  } finally {
     btn.textContent = 'إنشاء الحساب';
     btn.disabled = false;
-    return;
   }
-
-  const { data, error } = await supabase.auth.signUp({
-    email, password,
-    options: { data: { username } }
-  });
-
-  btn.textContent = 'إنشاء الحساب';
-  btn.disabled = false;
-
-  if (error) {
-    showToast(error.message.includes('already') ? 'هذا البريد مسجل من قبل' : 'حدث خطأ، حاول مرة أخرى', 'error');
-    return;
-  }
-
-  showToast('تم إنشاء حسابك بنجاح', 'success');
-  setTimeout(() => location.href = 'index.html', 1000);
 }
 
 document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') register(); });
