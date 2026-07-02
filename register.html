@@ -37,6 +37,8 @@
 
       <button class="btn btn-primary" style="width:100%;" onclick="register()" id="registerBtn">إنشاء الحساب</button>
 
+      <div id="debugLog" style="display:none; margin-top:16px; background:#000; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:11px; font-family:monospace; color:#0f0; max-height:200px; overflow:auto; direction:ltr; text-align:left;"></div>
+
       <div class="auth-switch">
         عندك حساب من قبل؟ <a href="login.html">تسجيل الدخول</a>
       </div>
@@ -46,10 +48,25 @@
 
 <script src="assets/js/supabase-client.js"></script>
 <script>
+function log(msg) {
+  const box = document.getElementById('debugLog');
+  box.style.display = 'block';
+  box.innerHTML += msg + '<br>';
+  box.scrollTop = box.scrollHeight;
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`انتهت المهلة (${ms/1000}ث) فـ: ${label}`)), ms))
+  ]);
+}
+
 async function register() {
   const username = document.getElementById('username').value.trim();
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
+  document.getElementById('debugLog').innerHTML = '';
 
   if (!username || !email || !password) return showToast('عمر جميع الحقول', 'error');
   if (username.length < 3) return showToast('اسم المستخدم قصير بزاف', 'error');
@@ -60,25 +77,42 @@ async function register() {
   btn.disabled = true;
 
   try {
-    const { data: existing, error: checkError } = await supabase.from('profiles').select('id').eq('username', username).maybeSingle();
+    log('1) التحقق من الاتصال بـ Supabase...');
+    if (typeof supabase === 'undefined') throw new Error('مكتبة supabase-js ماتحملاتش. تحقق من الاتصال بالإنترنت.');
+    log('✓ الاتصال بمكتبة Supabase تمام.');
+
+    log('2) التحقق من اسم المستخدم...');
+    const { data: existing, error: checkError } = await withTimeout(
+      supabase.from('profiles').select('id').eq('username', username).maybeSingle(),
+      10000, 'التحقق من اسم المستخدم'
+    );
     if (checkError) throw checkError;
+    log('✓ اسم المستخدم متاح.');
     if (existing) {
       showToast('اسم المستخدم هذا مستعمل من قبل', 'error');
+      log('✗ اسم المستخدم مستعمل من قبل.');
       return;
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email, password,
-      options: { data: { username } }
-    });
-
+    log('3) إنشاء الحساب فـ Supabase Auth...');
+    const { data, error } = await withTimeout(
+      supabase.auth.signUp({ email, password, options: { data: { username } } }),
+      15000, 'إنشاء الحساب'
+    );
     if (error) throw error;
+    log('✓ تم إنشاء الحساب. session: ' + (data.session ? 'نعم' : 'لا (يحتاج تأكيد البريد)'));
+
+    if (!data.session) {
+      showToast('تم إنشاء الحساب! تحقق من بريدك الإلكتروني للتأكيد قبل الدخول.', 'success');
+      return;
+    }
 
     showToast('تم إنشاء حسابك بنجاح', 'success');
     setTimeout(() => location.href = 'index.html', 1000);
 
   } catch (err) {
     console.error(err);
+    log('✗ خطأ: ' + (err.message || JSON.stringify(err)));
     showToast('خطأ: ' + (err.message || 'حدث خطأ، حاول مرة أخرى'), 'error');
   } finally {
     btn.textContent = 'إنشاء الحساب';
