@@ -47,8 +47,6 @@
 async function login() {
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
-  document.getElementById('emailError').style.display = 'none';
-  document.getElementById('passwordError').style.display = 'none';
 
   if (!email || !password) {
     showToast('عمر جميع الحقول', 'error');
@@ -59,18 +57,18 @@ async function login() {
   btn.textContent = 'جارِ الدخول...';
   btn.disabled = true;
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-  btn.textContent = 'دخول';
-  btn.disabled = false;
-
-  if (error) {
-    showToast('البريد أو كلمة المرور غير صحيحة', 'error');
-    return;
+  try {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    showToast('تم تسجيل الدخول بنجاح', 'success');
+    setTimeout(() => location.href = 'index.html', 800);
+  } catch (err) {
+    console.error(err);
+    showToast('خطأ: ' + (err.message || 'البريد أو كلمة المرور غير صحيحة'), 'error');
+  } finally {
+    btn.textContent = 'دخول';
+    btn.disabled = false;
   }
-
-  showToast('تم تسجيل الدخول بنجاح', 'success');
-  setTimeout(() => location.href = 'index.html', 800);
 }
 
 document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
